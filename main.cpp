@@ -4,6 +4,10 @@
 #include <sstream>
 #include <vector>
 #include <algorithm>
+#include <map>
+#include <cstdlib>
+#include <ctime>
+#include <iomanip>
 
 using namespace std;
 
@@ -38,35 +42,32 @@ string encryptWord(const std::string& word);
 
 // Función para encriptar una palabra según las reglas dadas
 std::string encryptWord(const std::string& word) {
-    std::string encryptedWord = word;
+     map<char, string> encriptacion = {
+        {'a', "U1"}, {'e', "U2"}, {'i', "U3"}, {'o', "U4"}, {'u', "U5"},
+        {'b', "g1"}, {'c', "g2"}, {'d', "g3"}, {'f', "g4"}, {'g', "g5"},
+        {'h', "g6"}, {'j', "g7"}, {'k', "g8"}, {'l', "g9"}, {'m', "g10"},
+        {'n', "g11"}, {'ñ', "g12"}, {'p', "g13"}, {'q', "g14"}, {'r', "g15"},
+        {'s', "g16"}, {'t', "g17"}, {'v', "g18"}, {'w', "g19"}, {'x', "g20"},
+        {'y', "g21"}, {'z', "g22"}, {'A', "g1"}, {'B', "g2"}, {'C', "g3"},
+        {'D', "g4"}, {'E', "g5"}, {'F', "g6"}, {'G', "g7"}, {'H', "g8"},
+        {'I', "g9"}, {'J', "g10"}, {'K', "g11"}, {'L', "g12"}, {'M', "g13"},
+        {'N', "g14"}, {'Ñ', "g15"}, {'O', "g16"}, {'P', "g17"}, {'Q', "g18"},
+        {'R', "g19"}, {'S', "g20"}, {'T', "g21"}, {'U', "g22"}, {'V', "g1"},
+        {'W', "g2"}, {'X', "g3"}, {'Y', "g4"}, {'Z', "g5"},
+        {'1', "m1"}, {'2', "m2"}, {'3', "m3"}, {'4', "m4"}, {'5', "m5"},
+        {'6', "m6"}, {'7', "m7"}, {'8', "m8"}, {'9', "m9"}, {'0', "m10"}
+    };
 
-    // Reemplazar las vocales por su equivalente U
-    for (char& c : encryptedWord) {
-        char lowercase = std::tolower(c);
-        if (lowercase == 'a') {
-            c = 'U1';
-        } else if (lowercase == 'e') {
-            c = 'U2';
-        } else if (lowercase == 'i') {
-            c = 'U3';
-        } else if (lowercase == 'o') {
-            c = 'U4';
-        } else if (lowercase == 'u') {
-            c = 'U5';
+    string palabraEncriptada = "";
+    for (char letra : word) {
+        if (encriptacion.count(letra) > 0) {
+            palabraEncriptada += encriptacion[letra];
+        } else {
+            palabraEncriptada += letra;
         }
     }
+    return palabraEncriptada;
 
-    // Reemplazar las letras por su equivalente m o g
-    for (char& c : encryptedWord) {
-        char lowercase = std::tolower(c);
-        if (lowercase >= 'a' && lowercase <= 'z') {
-            c = 'm' + (lowercase - 'a' + 1);
-        } else if (c >= 'A' && c <= 'Z') {
-            c = 'g' + (c - 'A' + 1);
-        }
-    }
-
-    return encryptedWord;
 }
 
 
@@ -276,12 +277,62 @@ AVLNode* loadAVLFromFile(const string& filename) {
     return root;
 }
 
+// Función para generar el token
+string generarToken(string usuario, string clave, string semilla) {
+    string combinacion = usuario + clave + semilla;
+    stringstream ss;
+    for (char c : combinacion) {
+        ss << setw(2) << setfill('0') << hex << (int)c;
+    }
+    return ss.str();
+}
+
+// Función para leer la semilla desde un archivo seed
+string leerSemilla() {
+    ifstream archivo("semilla.txt");
+    if (!archivo) {
+        cerr << "Error al abrir el archivo de semilla." << endl;
+        exit(1);
+    }
+    string semilla;
+    archivo >> semilla;
+    archivo.close();
+    return semilla;
+}
+
+
+// Función para validar el token
+bool validarToken(string token, string semilla) {
+    // Leer el token almacenado en el archivo
+    ifstream archivo("token.txt");
+    if (!archivo) {
+        cerr << "Error al abrir el archivo de token." << endl;
+        exit(1);
+    }
+    string tokenAlmacenado;
+    archivo >> tokenAlmacenado;
+    archivo.close();
+
+    // Generar el token utilizando la semilla y compararlo con el almacenado
+    string tokenGenerado = generarToken("usuario", "clave", semilla);
+    return (token == tokenGenerado);
+}
+
 // Función para mostrar el menú y procesar la selección del usuario
-void showMenu(AVLNode* root, string& username) {
+void showMenu(AVLNode* root, string& username, string& clave, string& semilla) {
     std::string word,traducir;
     std::string translation;
-     // Historial de búsqueda del usuario
-
+    
+    string token = generarToken(username, clave, semilla);
+    cout << "Token generado: " << token << endl;
+   /* if (validarToken(token, semilla)) {
+        cout << "Token válido. Acceso permitido." << endl;
+    } else {
+        cout << "Token inválido. Acceso denegado." << endl;
+    }*/
+  
+     
+      
   
     
     while (true) {
@@ -349,12 +400,15 @@ int main() {
     AVLNode* root = loadAVLFromFile("arbol_avl.txt");
     
     // Obtener el nombre de usuario
-    std::string username;
+    std::string username, clave;
+    string semilla = leerSemilla();
     std::cout << "Ingrese su nombre de usuario: ";
     std::cin >> username;
+    cout << "Ingrese clave: ";
+    std::cin >> clave;
     
     // Mostrar el menú principal
-    showMenu(root,username);
+    showMenu(root,username,clave, semilla);
 
     return 0;
 }
