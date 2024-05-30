@@ -7,6 +7,8 @@
 #include <sys/stat.h>  // Para crear directorios en Unix/Linux
 #include <direct.h>    // Para crear directorios en Windows
 #include <map>
+#include <curl/curl.h>
+#include <cstring> 
 
 
 
@@ -48,7 +50,9 @@ void processUserFiles(const std::string& username, const std::string& key);
 bool verifyUserPassword(const std::string& username, const std::string& password);
 void saveUserPassword(const std::string& username, const std::string& password);
 void xorEncryptDecrypt(const std::string& key, std::string& data);
-
+bool textToSpeech(const std::string& text, const std::string& translation, const std::string& username);
+static size_t writeCallback(void* data, size_t size, size_t nmemb, FILE* fp);
+void printHeader();
 // Función para encriptar una palabra según las reglas dadas
 
 std::string encryptWord(const std::string& word) {
@@ -274,7 +278,7 @@ AVLNode* loadAVLFromFile(const string& filename) {
         root = insertNode(root, spanishWord, italianWord, frenchWord, germanWord, englishWord);
 
         // Esta instrucción es solo para verificar qué se está leyendo de cada línea
-        cout << "Palabras: " << spanishWord << ", " << italianWord << ", " << frenchWord << ", " << germanWord << ", " << englishWord << endl;
+       // cout << "Palabras: " << spanishWord << ", " << italianWord << ", " << frenchWord << ", " << germanWord << ", " << englishWord << endl;
     }
 
     file.close();
@@ -359,10 +363,13 @@ void showTopWords(const string& username, int topN) {
 void saveUserInformation(const std::string& username, const std::string& word, const std::string& translation) {
     // Crear una carpeta con el nombre del usuario
     std::string userDir = "./" + username;
+    std::string sonidosDir = username + "/sonidos" ;
     #if defined(_WIN32)
         _mkdir(userDir.c_str());
+        _mkdir(sonidosDir.c_str());
     #else 
         mkdir(userDir.c_str(), 0777);
+        mkdir(sonidosDir.c_str(), 0777);
     #endif
 
     // Encriptar la palabra
@@ -386,7 +393,12 @@ void saveUserInformation(const std::string& username, const std::string& word, c
 }
 
 
-
+void printHeader() {
+    std::cout << "+---------------------------------------+" << std::endl;
+    std::cout << "|             Bienvenido a             |" << std::endl;
+    std::cout << "|  Nuestra Aplicación de Traduccion    |" << std::endl;
+    std::cout << "+---------------------------------------+" << std::endl;
+}
 
 // Función para mostrar el menú y procesar la selección del usuario
 void showMenu(AVLNode* root, string& username) {
@@ -394,16 +406,19 @@ void showMenu(AVLNode* root, string& username) {
     std::string translation;
     
     while (true) {
-        std::cout << "\nMenú:\n";
-        std::cout << "1. Buscar traducción de una palabra\n";
-        std::cout << "2. Mostrar top de palabras buscadas\n";
-        std::cout << "3. Salir\n";
-        std::cout << "Seleccione una opción: ";
+        printHeader();
+    std::cout << "\n Hola, " << username << "" << std::endl;
+    std::cout << "\n--- Menu Principal ---" << std::endl;
+    std::cout << "1. Buscar traduccion de una palabra." << std::endl;
+    std::cout << "2. Mostrar las palabras más buscadas." << std::endl;
+    std::cout << "3. Salir." << std::endl;
+    std::cout << "\nSeleccione una opcion: ";
         int choice;
         std::cin >> choice;
 
         switch (choice) {
             case 1:
+            	system("clear");
                 std::cout << "Ingrese la palabra a buscar: ";
                 std::cin >> word;
                 std::cout << "Traducir a qué idioma: (espanol, italiano, frances, aleman o ingles)\n";
@@ -421,15 +436,39 @@ void showMenu(AVLNode* root, string& username) {
                 } else {
                     std::cout << "No se encontró traducción para '" << word << "'." << std::endl;
                 }
-                
+                 if (!translation.empty()) {
+                 	   // para reproducir sonido de traducción
+					      if (textToSpeech(word, translation,username)) {
+					        //std::cout << "Text translated to speech successfully. Output file: " << translation << ".mp3" << std::endl;
+					
+					        // Preguntar al usuario si desea reproducir el audio
+					       // std::cout << "¿Desea escuchar sonido de traducción (si/no): ";
+					       // std::string play;
+					       // std::cin >> play;
+					       // std::getline(std::cin, play);
+					       // if (std::strcmp(play.c_str(), "si") == 0) {
+					          // Reproducir el audio
+					          std::string command = "start "+ username + "/sonidos/" + translation + ".mp3"; // Abrir archivo de audio en el sistema (Windows)
+					         
+							  system(command.c_str());
+							  system("pause");
+					        }
+					     // } else {
+					     //   std::cerr << "Error translating text to speech." << std::endl;
+					     // }
+					    } else {
+					      std::cerr << "The translation is empty." << std::endl;
+					    }                
                 break;
             case 2:
+            	system("clear");
                 int topN;
                 std::cout << "Ingrese el número de palabras más buscadas a mostrar: ";
                 std::cin >> topN;
                 showTopWords(username,topN);
                 break;
             case 3:
+            	system("clear");
                 std::cout << "Saliendo del programa...\n";
                 return;
             default:
@@ -503,13 +542,64 @@ void xorEncryptDecrypt(const std::string& key, std::string& data) {
     }
 }
 
+// Function to convert text to speech using Google TTS API
+bool textToSpeech(const std::string& text, const std::string& translation, const std::string& username) {
+  std::string encodedText = curl_easy_escape(NULL, translation.c_str(), translation.length());
+  std::string url = "https://translate.google.com/translate_tts?ie=UTF-8&q=" + encodedText + "&tl=en&client=tw-ob";
+
+  CURL* curl = curl_easy_init();
+  if (curl) {
+    std::string outputFile = username+"/sonidos/"+translation + ".mp3"; // Use la traducción como nombre del archivo de audio
+    FILE* fp = fopen(outputFile.c_str(), "wb");
+    if (fp) {
+      curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+      curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writeCallback);
+      curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);
+      curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L); // Ignore SSL certificate verification
+
+      CURLcode res = curl_easy_perform(curl);
+      fclose(fp);
+
+      if (res != CURLE_OK) {
+        cerr << "Error performing HTTP request: " << curl_easy_strerror(res) << endl;
+        return false;
+      }
+    } else {
+      cerr << "Error opening output file: " << outputFile << endl;
+      return false;
+    }
+
+    curl_easy_cleanup(curl);
+  } else {
+    cerr << "Error initializing Curl." << endl;
+    return false;
+  }
+
+  return true;
+}
+
+// Function to write data received from HTTP response to a file
+static size_t writeCallback(void* data, size_t size, size_t nmemb, FILE* fp) {
+  size_t written = fwrite(data, size, nmemb, fp);
+  return written;
+}
+
 
 int main() {
     // Cargar el árbol AVL desde un archivo
     AVLNode* root = loadAVLFromFile("arbol_avl.txt");
 
-    // Obtener el nombre de usuario
+     // Obtener el nombre de usuario
     std::string username;
+    std::cout << "+---------------------------------------+" << std::endl;
+    std::cout << "|                                       |" << std::endl;
+    std::cout << "|        Bienvenido al traductor        |" << std::endl;
+    std::cout << "|                                       |" << std::endl;
+    std::cout << "|                                       |" << std::endl;
+    std::cout << "|              Integrantes              |" << std::endl;
+    std::cout << "|                                       |" << std::endl;
+    std::cout << "|                                       |" << std::endl;
+    std::cout << "+---------------------------------------+" << std::endl;
     std::cout << "Ingrese su nombre de usuario: ";
     std::cin >> username;
 
@@ -526,26 +616,28 @@ int main() {
             mkdir(userDir.c_str(), 0777);
         #endif
 
-        std::cout << "Ingrese una nueva contraseña: ";
+        std::cout << "Ingrese una nueva clave: ";
         std::cin >> password;
         saveUserPassword(username, password);
-        std::cout << "Usuario y contraseña creados exitosamente." << std::endl;
+        std::cout << "Usuario y clave creados exitosamente." << std::endl;
     } else {
         // El usuario existe, pedir contraseña y verificar
-        std::cout << "Ingrese su contraseña: ";
+        std::cout << "Ingrese su clave: ";
         std::cin >> password;
         
         if (!verifyUserPassword(username, password)) {
-            std::cerr << "Contraseña incorrecta. Saliendo del programa..." << std::endl;
+            std::cerr << "Clave incorrecta. Saliendo del programa..." << std::endl;
             return 1;
         } else {
-            std::cout << "Contraseña verificada. Bienvenido, " << username << "!" << std::endl;
+            std::cout << "Clave verificada. Bienvenido, " << username << "!" << std::endl;
         }
     }
 
     // Desencriptar archivos del usuario antes de trabajar con ellos
     processUserFiles(username, password);
-
+     
+      // Limpiar la consola
+    system("cls || clear");
     // Mostrar el menú principal
     showMenu(root, username);
 
@@ -554,5 +646,4 @@ int main() {
 
     return 0;
 }
-
 
