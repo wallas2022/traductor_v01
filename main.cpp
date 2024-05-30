@@ -4,13 +4,13 @@
 #include <sstream>
 #include <vector>
 #include <algorithm>
+#include <sys/stat.h>  // Para crear directorios en Unix/Linux
+#include <direct.h>    // Para crear directorios en Windows
 #include <map>
-#include <cstdlib>
-#include <ctime>
-#include <iomanip>
+
+
 
 using namespace std;
-
 
 // Estructura del nodo del árbol AVL
 struct AVLNode {
@@ -23,7 +23,6 @@ struct AVLNode {
     AVLNode* right;
     int height;
 };
-
 
 // Estructura para el historial de búsqueda
 struct SearchEntry {
@@ -38,9 +37,20 @@ int getBalance(AVLNode* node);
 AVLNode* rotateLeft(AVLNode* y);
 AVLNode* rotateRight(AVLNode* y);
 void saveSearchEntry(const SearchEntry& entry, const std::string& filename);
-string encryptWord(const std::string& word);
+std::string encryptWord(const std::string& word);
+void saveUserInformation(const std::string& username, const std::string& word, const std::string& translation);
+std::string decryptWord(const std::string& word);
+void showTopWords(const std::string& username, int topN);
+void restrictAccess(const std::string& username);
+void saveKey(const std::string& keyFilename);
+void createProfile(const std::string& username);
+void processUserFiles(const std::string& username, const std::string& key);
+bool verifyUserPassword(const std::string& username, const std::string& password);
+void saveUserPassword(const std::string& username, const std::string& password);
+void xorEncryptDecrypt(const std::string& key, std::string& data);
 
 // Función para encriptar una palabra según las reglas dadas
+
 std::string encryptWord(const std::string& word) {
      map<char, string> encriptacion = {
         {'a', "U1"}, {'e', "U2"}, {'i', "U3"}, {'o', "U4"}, {'u', "U5"},
@@ -72,9 +82,9 @@ std::string encryptWord(const std::string& word) {
 
 
 
-// Función para guardar una palabra en un archivo
-void saveWordToFile(const std::string& word, const std::string& filename) {
-    std::ofstream file(filename);
+// Función para guardar una palabra en un archivo (modo de añadir)
+void appendWordToFile(const std::string& word, const std::string& filename) {
+    std::ofstream file(filename, std::ios::app); // Abre el archivo en modo de añadir
     if (!file.is_open()) {
         std::cerr << "Error al abrir el archivo: " << filename << std::endl;
         return;
@@ -84,7 +94,6 @@ void saveWordToFile(const std::string& word, const std::string& filename) {
 
     file.close();
 }
-
 
 int height(AVLNode* node) {
     if (node == nullptr) {
@@ -135,8 +144,6 @@ std::string searchTranslation(AVLNode* root, const std::string& word, const std:
     // Si la palabra no se encuentra en el árbol, devolver una cadena vacía
     return "";
 }
-
-
 
 // Función para insertar un nuevo nodo en el árbol AVL
 AVLNode* insertNode(AVLNode* root, const std::string& spanishWord, const std::string& italianWord, const std::string& frenchWord, const std::string& germanWord, const std::string& englishWord) {
@@ -197,7 +204,6 @@ AVLNode* insertNode(AVLNode* root, const std::string& spanishWord, const std::st
     return root; // Devolver el nodo actualizado
 }
 
-
 // Función para guardar una entrada de historial de búsqueda en un archivo
 void saveSearchEntry(const SearchEntry& entry, const std::string& filename) {
     std::ofstream file(filename, std::ios::app); // Abre el archivo en modo de añadir para agregar entradas sin borrar el contenido existente
@@ -211,8 +217,6 @@ void saveSearchEntry(const SearchEntry& entry, const std::string& filename) {
     file.close();
 }
 
-
-
 // Definición de la función getHeight
 int getHeight(AVLNode* node) {
     if (node == nullptr) {
@@ -221,6 +225,7 @@ int getHeight(AVLNode* node) {
         return node->height;
     }
 }
+
 // Función para realizar una rotación hacia la izquierda en un árbol AVL
 AVLNode* rotateRight(AVLNode* node) {
     AVLNode* newRoot = node->left;
@@ -228,11 +233,12 @@ AVLNode* rotateRight(AVLNode* node) {
     newRoot->right = node;
 
     // Actualizar alturas
-    node->height = 1 + std::max(height(node->left), height(node->right));
-    newRoot->height = 1 + std::max(height(newRoot->left), height(newRoot->right));
+    node->height = 1 + max(height(node->left), height(node->right));
+    newRoot->height = 1 + max(height(newRoot->left), height(newRoot->right));
 
     return newRoot;
 }
+
 // Función para realizar una rotación simple a la izquierda
 AVLNode* rotateLeft(AVLNode* node) {
     AVLNode* newRoot = node->right;
@@ -246,8 +252,6 @@ AVLNode* rotateLeft(AVLNode* node) {
     return newRoot;
 }
 
-
-
 // Función para cargar el árbol AVL desde un archivo
 AVLNode* loadAVLFromFile(const string& filename) {
     ifstream file(filename);
@@ -257,7 +261,7 @@ AVLNode* loadAVLFromFile(const string& filename) {
     }
 
     AVLNode* root = nullptr;
-    std:string line;
+    std::string line;
     while (getline(file, line)) {
         stringstream ss(line);
         std::string spanishWord, italianWord, frenchWord, germanWord, englishWord;
@@ -277,68 +281,123 @@ AVLNode* loadAVLFromFile(const string& filename) {
     return root;
 }
 
-// Función para generar el token
-string generarToken(string usuario, string clave, string semilla) {
-    string combinacion = usuario + clave + semilla;
-    stringstream ss;
-    for (char c : combinacion) {
-        ss << setw(2) << setfill('0') << hex << (int)c;
+
+
+
+    // Revertir la encriptación de las vocales
+  std::string decryptWord(const std::string& word) {
+    std::map<std::string, char> desencriptacion = {
+        {"U1", 'a'}, {"U2", 'e'}, {"U3", 'i'}, {"U4", 'o'}, {"U5", 'u'},
+        {"g1", 'b'}, {"g2", 'c'}, {"g3", 'd'}, {"g4", 'f'}, {"g5", 'g'},
+        {"g6", 'h'}, {"g7", 'j'}, {"g8", 'k'}, {"g9", 'l'}, {"g10", 'm'},
+        {"g11", 'n'}, {"g12", 'ñ'}, {"g13", 'p'}, {"g14", 'q'}, {"g15", 'r'},
+        {"g16", 's'}, {"g17", 't'}, {"g18", 'v'}, {"g19", 'w'}, {"g20", 'x'},
+        {"g21", 'y'}, {"g22", 'z'}, {"m1", '1'}, {"m2", '2'}, {"m3", '3'},
+        {"m4", '4'}, {"m5", '5'}, {"m6", '6'}, {"m7", '7'}, {"m8", '8'},
+        {"m9", '9'}, {"m10", '0'}
+    };
+
+    std::string palabraDesencriptada = "";
+    std::string buffer = "";
+    for (char letra : word) {
+        if (letra == 'U' || letra == 'g' || letra == 'm') {
+            buffer = letra;
+        } else {
+            buffer += letra;
+            if (desencriptacion.count(buffer) > 0) {
+                palabraDesencriptada += desencriptacion[buffer];
+                buffer = "";
+            }
+        }
     }
-    return ss.str();
+    return palabraDesencriptada;
 }
 
-// Función para leer la semilla desde un archivo seed
-string leerSemilla() {
-    ifstream archivo("semilla.txt");
-    if (!archivo) {
-        cerr << "Error al abrir el archivo de semilla." << endl;
-        exit(1);
+
+
+void showTopWords(const string& username, int topN) {
+    map<string, int> topWords;
+
+    // Cargar las palabras buscadas del archivo encriptado.txt
+    ifstream file(username+"/encriptado.txt");
+    if (!file.is_open()) {
+        cerr << "Error al abrir el archivo: encriptado.txt" << endl;
+        return;
     }
-    string semilla;
-    archivo >> semilla;
-    archivo.close();
-    return semilla;
+
+    string word;
+    while (file >> word) {
+        // Desencriptar la palabra
+        string decryptedWord = decryptWord(word);
+        // Incrementar el contador de la palabra desencriptada
+        topWords[decryptedWord]++;
+    }
+
+    file.close();
+
+    // Ordenar el mapa por frecuencia de búsqueda
+    vector<pair<string, int>> sortedWords(topWords.begin(), topWords.end());
+    sort(sortedWords.begin(), sortedWords.end(), [](const pair<string, int>& a, const pair<string, int>& b) {
+        return a.second > b.second;
+    });
+
+    // Mostrar el top de palabras buscadas
+    cout << "Top " << topN << " palabras buscadas por " << username << ":" << endl;
+    int count = 0;
+    for (const auto& pair : sortedWords) {
+        cout << pair.first << " - " << pair.second << " veces" << endl;
+        if (++count >= topN) {
+            break;
+        }
+    }
 }
 
 
-// Función para validar el token
-bool validarToken(string token, string semilla) {
-    // Leer el token almacenado en el archivo
-    ifstream archivo("token.txt");
-    if (!archivo) {
-        cerr << "Error al abrir el archivo de token." << endl;
-        exit(1);
-    }
-    string tokenAlmacenado;
-    archivo >> tokenAlmacenado;
-    archivo.close();
 
-    // Generar el token utilizando la semilla y compararlo con el almacenado
-    string tokenGenerado = generarToken("usuario", "clave", semilla);
-    return (token == tokenGenerado);
+
+// Función para guardar la información del usuario en una carpeta con su nombre
+void saveUserInformation(const std::string& username, const std::string& word, const std::string& translation) {
+    // Crear una carpeta con el nombre del usuario
+    std::string userDir = "./" + username;
+    #if defined(_WIN32)
+        _mkdir(userDir.c_str());
+    #else 
+        mkdir(userDir.c_str(), 0777);
+    #endif
+
+    // Encriptar la palabra
+    std::string encryptedWord = encryptWord(word);
+
+    // Guardar la palabra original en un archivo
+    appendWordToFile(word, userDir + "/original.txt");
+
+    // Guardar la palabra encriptada en otro archivo
+    appendWordToFile(encryptedWord, userDir + "/encriptado.txt");
+
+    // Guardar la llave en otro archivo
+    appendWordToFile("Umg", userDir + "/llave.txt");
+
+    // Guardar el historial de búsqueda en un archivo
+    SearchEntry entry;
+    entry.username = username;
+    entry.searchedWord = word;
+    entry.translation = translation;
+    saveSearchEntry(entry, userDir + "/historial.txt");
 }
+
+
+
 
 // Función para mostrar el menú y procesar la selección del usuario
-void showMenu(AVLNode* root, string& username, string& clave, string& semilla) {
-    std::string word,traducir;
+void showMenu(AVLNode* root, string& username) {
+    std::string word, traducir;
     std::string translation;
-    
-    string token = generarToken(username, clave, semilla);
-    cout << "Token generado: " << token << endl;
-   /* if (validarToken(token, semilla)) {
-        cout << "Token válido. Acceso permitido." << endl;
-    } else {
-        cout << "Token inválido. Acceso denegado." << endl;
-    }*/
-  
-     
-      
-  
     
     while (true) {
         std::cout << "\nMenú:\n";
         std::cout << "1. Buscar traducción de una palabra\n";
-        std::cout << "2. Salir\n";
+        std::cout << "2. Mostrar top de palabras buscadas\n";
+        std::cout << "3. Salir\n";
         std::cout << "Seleccione una opción: ";
         int choice;
         std::cin >> choice;
@@ -347,45 +406,30 @@ void showMenu(AVLNode* root, string& username, string& clave, string& semilla) {
             case 1:
                 std::cout << "Ingrese la palabra a buscar: ";
                 std::cin >> word;
-                std::cout << "Traducior a que idioma: (espanol,italiano,frances,aleman o ingles) \n";
+                std::cout << "Traducir a qué idioma: (espanol, italiano, frances, aleman o ingles)\n";
                 std::cin >> traducir;
               
-                translation = searchTranslation(root, word,traducir);
-               
-           
+                translation = searchTranslation(root, word, traducir);
                 
                 if (!translation.empty()) {
                     std::cout << "Traducción de '" << word << "': " << translation << std::endl;
-                    SearchEntry entry;
-				    entry.username = username;
-				    entry.searchedWord = word;
-				    entry.translation = translation;
-                    // Guardar el historial de búsqueda en un archivo
-				    saveSearchEntry(entry, username+"_historial.txt");
-				    
-				    // Encriptar la palabra
-    				std::string encryptedWord = encryptWord(word);
-    				
-    				// Guardar la palabra original en un archivo
-    				saveWordToFile(word, "original.txt");
-    				
-    				// Guardar la palabra encriptada en otro archivo
-   					 saveWordToFile(encryptedWord, "encriptado.txt");
-   					 
-   					// Guardar la llave en otro archivo
-    				saveWordToFile("Umg", "llave.txt"); 
-				
-				    std::cout << "Historial de búsqueda guardado correctamente." << std::endl;
-				    std::cout << "Palabra original: " << word << std::endl;
-   					std::cout << "Palabra encriptada: " << encryptedWord << std::endl;
+                    
+                    // Guardar la información del usuario en una carpeta
+                    saveUserInformation(username, word, translation);
 
-                system("pause");
+                    std::cout << "Información del usuario guardada correctamente." << std::endl;
                 } else {
                     std::cout << "No se encontró traducción para '" << word << "'." << std::endl;
                 }
-                  
+                
                 break;
             case 2:
+                int topN;
+                std::cout << "Ingrese el número de palabras más buscadas a mostrar: ";
+                std::cin >> topN;
+                showTopWords(username,topN);
+                break;
+            case 3:
                 std::cout << "Saliendo del programa...\n";
                 return;
             default:
@@ -395,20 +439,120 @@ void showMenu(AVLNode* root, string& username, string& clave, string& semilla) {
     }
 }
 
+void processUserFiles(const std::string& username, const std::string& key) {
+    std::vector<std::string> filenames = {"/original.txt", "/encriptado.txt", "/historial.txt"};
+    for (const auto& filename : filenames) {
+        std::string filePath = username + filename;
+        std::ifstream file(filePath, std::ios::binary);
+        if (!file.is_open()) {
+            continue;
+        }
+
+        std::stringstream buffer;
+        buffer << file.rdbuf();
+        std::string content = buffer.str();
+        file.close();
+
+        xorEncryptDecrypt(key, content);
+
+        std::ofstream outFile(filePath, std::ios::binary);
+        if (!outFile.is_open()) {
+            std::cerr << "Error al abrir el archivo para escribir: " << filePath << std::endl;
+            continue;
+        }
+
+        outFile << content;
+        outFile.close();
+    }
+}
+void saveUserPassword(const std::string& username, const std::string& password) {
+    std::string encryptedPassword = password;
+    xorEncryptDecrypt("simple_key", encryptedPassword);
+    
+    std::string passwordFile = username + "/llave_" + username + ".txt";
+    std::ofstream file(passwordFile);
+    if (!file.is_open()) {
+        std::cerr << "Error al abrir el archivo: " << passwordFile << std::endl;
+        return;
+    }
+
+    file << encryptedPassword << std::endl;
+    file.close();
+}
+
+bool verifyUserPassword(const std::string& username, const std::string& password) {
+    std::string passwordFile = username + "/llave_" + username + ".txt";
+    std::ifstream file(passwordFile);
+    if (!file.is_open()) {
+        return false; // No existe el archivo de contraseña
+    }
+
+    std::string storedPassword;
+    std::getline(file, storedPassword);
+    file.close();
+
+    xorEncryptDecrypt("simple_key", storedPassword);
+
+    return storedPassword == password;
+}
+
+
+void xorEncryptDecrypt(const std::string& key, std::string& data) {
+    for (size_t i = 0; i < data.size(); ++i) {
+        data[i] ^= key[i % key.size()];
+    }
+}
+
+
 int main() {
     // Cargar el árbol AVL desde un archivo
     AVLNode* root = loadAVLFromFile("arbol_avl.txt");
-    
+
     // Obtener el nombre de usuario
-    std::string username, clave;
-    string semilla = leerSemilla();
+    std::string username;
     std::cout << "Ingrese su nombre de usuario: ";
     std::cin >> username;
-    cout << "Ingrese clave: ";
-    std::cin >> clave;
+
+    std::string userDir = "./" + username;
+    std::string password;
     
+    // Verificar si el usuario ya existe
+    struct stat info;
+    if (stat(userDir.c_str(), &info) != 0 || !(info.st_mode & S_IFDIR)) {
+        // El usuario no existe, crear carpeta y pedir contraseña nueva
+        #if defined(_WIN32)
+            _mkdir(userDir.c_str());
+        #else 
+            mkdir(userDir.c_str(), 0777);
+        #endif
+
+        std::cout << "Ingrese una nueva contraseña: ";
+        std::cin >> password;
+        saveUserPassword(username, password);
+        std::cout << "Usuario y contraseña creados exitosamente." << std::endl;
+    } else {
+        // El usuario existe, pedir contraseña y verificar
+        std::cout << "Ingrese su contraseña: ";
+        std::cin >> password;
+        
+        if (!verifyUserPassword(username, password)) {
+            std::cerr << "Contraseña incorrecta. Saliendo del programa..." << std::endl;
+            return 1;
+        } else {
+            std::cout << "Contraseña verificada. Bienvenido, " << username << "!" << std::endl;
+        }
+    }
+
+    // Desencriptar archivos del usuario antes de trabajar con ellos
+    processUserFiles(username, password);
+
     // Mostrar el menú principal
-    showMenu(root,username,clave, semilla);
+    showMenu(root, username);
+
+    // Encriptar archivos del usuario después de trabajar con ellos
+    processUserFiles(username, password);
 
     return 0;
 }
+
+
