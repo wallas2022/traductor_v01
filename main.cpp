@@ -318,10 +318,10 @@ AVLNode* loadAVLFromFile(const string& filename) {
 void showTopWords(const string& username, int topN) {
     map<string, int> topWords;
 
-    // Cargar las palabras buscadas del archivo encriptado.txt
-    ifstream file(username+"/encriptado.txt");
+    // Cargar las palabras buscadas del archivo encriptado.ptra
+    ifstream file(username+"/encriptado.ptra");
     if (!file.is_open()) {
-        cerr << "Error al abrir el archivo: encriptado.txt" << endl;
+        cerr << "Error al abrir el archivo: encriptado.ptra" << endl;
         return;
     }
 
@@ -369,20 +369,20 @@ void saveUserInformation(const std::string& username, const std::string& word, c
     std::string encryptedWord = encryptWord(word);
 
     // Guardar la palabra original en un archivo
-    appendWordToFile(word, userDir + "/original.txt");
+    appendWordToFile(word, userDir + "/original.ptra");
 
     // Guardar la palabra encriptada en otro archivo
-    appendWordToFile(encryptedWord, userDir + "/encriptado.txt");
+    appendWordToFile(encryptedWord, userDir + "/encriptado.ptra");
 
     // Guardar la llave en otro archivo
-    appendWordToFile("Umg", userDir + "/llave.txt");
+    appendWordToFile("Umg", userDir + "/llave.ptra");
 
     // Guardar el historial de búsqueda en un archivo
     SearchEntry entry;
     entry.username = username;
     entry.searchedWord = word;
     entry.translation = translation;
-    saveSearchEntry(entry, userDir + "/historial.txt");
+    saveSearchEntry(entry, userDir + "/historial.ptra");
 }
 
 
@@ -440,7 +440,7 @@ void showMenu(AVLNode* root, string& username) {
 }
 
 void processUserFiles(const std::string& username, const std::string& key) {
-    std::vector<std::string> filenames = {"/original.txt", "/encriptado.txt", "/historial.txt"};
+    std::vector<std::string> filenames = {"/original.ptra", "/encriptado.ptra", "/historial.ptra"};
     for (const auto& filename : filenames) {
         std::string filePath = username + filename;
         std::ifstream file(filePath, std::ios::binary);
@@ -469,7 +469,7 @@ void saveUserPassword(const std::string& username, const std::string& password) 
     std::string encryptedPassword = password;
     xorEncryptDecrypt("simple_key", encryptedPassword);
     
-    std::string passwordFile = username + "/llave_" + username + ".txt";
+    std::string passwordFile = username + "/llave_" + username + ".ptra";
     std::ofstream file(passwordFile);
     if (!file.is_open()) {
         std::cerr << "Error al abrir el archivo: " << passwordFile << std::endl;
@@ -481,7 +481,7 @@ void saveUserPassword(const std::string& username, const std::string& password) 
 }
 
 bool verifyUserPassword(const std::string& username, const std::string& password) {
-    std::string passwordFile = username + "/llave_" + username + ".txt";
+    std::string passwordFile = username + "/llave_" + username + ".ptra";
     std::ifstream file(passwordFile);
     if (!file.is_open()) {
         return false; // No existe el archivo de contraseña
