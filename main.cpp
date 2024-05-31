@@ -9,6 +9,7 @@
 #include <map>
 #include <curl/curl.h>
 #include <cstring> 
+#include <functional>
 
 
 
@@ -53,6 +54,12 @@ void xorEncryptDecrypt(const std::string& key, std::string& data);
 bool textToSpeech(const std::string& text, const std::string& translation, const std::string& username);
 static size_t writeCallback(void* data, size_t size, size_t nmemb, FILE* fp);
 void printHeader();
+AVLNode* deleteNode(AVLNode* root, const std::string& spanishWord);
+AVLNode* findMinNode(AVLNode* node);
+void saveAVLToFile(AVLNode* root, const std::string& filename);
+
+
+
 // Función para encriptar una palabra según las reglas dadas
 
 std::string encryptWord(const std::string& word) {
@@ -115,6 +122,94 @@ int getBalance(AVLNode* node) {
     }
     return height(node->left) - height(node->right);
 }
+
+// Función para encontrar el nodo con el valor mínimo en un árbol
+AVLNode* findMinNode(AVLNode* node) {
+    while (node->left != nullptr) {
+        node = node->left;
+    }
+    return node;
+}
+
+// Función para eliminar un nodo en el árbol AVL
+AVLNode* deleteNode(AVLNode* root, const std::string& spanishWord) {
+    if (root == nullptr) {
+        return root;
+    }
+
+    int compareResult = spanishWord.compare(root->spanishWord);
+
+    if (compareResult < 0) {
+        root->left = deleteNode(root->left, spanishWord);
+    } else if (compareResult > 0) {
+        root->right = deleteNode(root->right, spanishWord);
+    } else {
+        // Nodo encontrado
+        if (root->left == nullptr || root->right == nullptr) {
+            AVLNode* temp = root->left ? root->left : root->right;
+            if (temp == nullptr) {
+                temp = root;
+                root = nullptr;
+            } else {
+                *root = *temp;
+            }
+            delete temp;
+        } else {
+            AVLNode* temp = findMinNode(root->right);
+            root->spanishWord = temp->spanishWord;
+            root->italianWord = temp->italianWord;
+            root->frenchWord = temp->frenchWord;
+            root->germanWord = temp->germanWord;
+            root->englishWord = temp->englishWord;
+            root->right = deleteNode(root->right, temp->spanishWord);
+        }
+    }
+
+    if (root == nullptr) {
+        return root;
+    }
+
+    root->height = 1 + std::max(height(root->left), height(root->right));
+    int balance = getBalance(root);
+
+    if (balance > 1 && getBalance(root->left) >= 0) {
+        return rotateRight(root);
+    }
+    if (balance > 1 && getBalance(root->left) < 0) {
+        root->left = rotateLeft(root->left);
+        return rotateRight(root);
+    }
+    if (balance < -1 && getBalance(root->right) <= 0) {
+        return rotateLeft(root);
+    }
+    if (balance < -1 && getBalance(root->right) > 0) {
+        root->right = rotateRight(root->right);
+        return rotateLeft(root);
+    }
+
+    return root;
+}
+
+void saveAVLToFile(AVLNode* root, const std::string& filename) {
+    std::ofstream file(filename);
+    if (!file.is_open()) {
+        std::cerr << "Error al abrir el archivo: " << filename << std::endl;
+        return;
+    }
+
+    std::function<void(AVLNode*)> inorder = [&](AVLNode* node) {
+        if (node == nullptr) {
+            return;
+        }
+        inorder(node->left);
+        file << node->spanishWord << "," << node->italianWord << "," << node->frenchWord << "," << node->germanWord << "," << node->englishWord << std::endl;
+        inorder(node->right);
+    };
+
+    inorder(root);
+    file.close();
+}
+
 
 // Función para buscar la traducción de una palabra en el árbol AVL
 std::string searchTranslation(AVLNode* root, const std::string& word, const std::string& targetLanguage) {
@@ -406,7 +501,7 @@ void printHeader() {
 void showMenu(AVLNode* root, string& username) {
     std::string word, traducir;
     std::string translation;
-    
+    system("clear");
     while (true) {
         printHeader();
     std::cout << "\n Hola, " << username << "" << std::endl;
@@ -421,6 +516,39 @@ void showMenu(AVLNode* root, string& username) {
         std::cin >> choice;
 
         switch (choice) {
+             case 1: {
+                system("clear");
+                std::string spanishWord, italianWord, frenchWord, germanWord, englishWord;
+                std::cout << "Ingrese la palabra en español: ";
+                std::cin >> spanishWord;
+                std::cout << "Ingrese la palabra en italiano: ";
+                std::cin >> italianWord;
+                std::cout << "Ingrese la palabra en francés: ";
+                std::cin >> frenchWord;
+                std::cout << "Ingrese la palabra en alemán: ";
+                std::cin >> germanWord;
+                std::cout << "Ingrese la palabra en inglés: ";
+                std::cin >> englishWord;
+
+                root = insertNode(root, spanishWord, italianWord, frenchWord, germanWord, englishWord);
+                saveAVLToFile(root, "arbol_avl.txt");
+                std::cout << "La palabra y sus traducciones "+ word + " " + italianWord + " " + frenchWord + " "+ germanWord+ " "+englishWord+  " fue insertadas satisfactoriamente." << endl;
+                system("pause");
+                
+                break;
+            }
+            case 2: {
+                system("clear");
+                std::cout << "Ingrese la palabra en español a eliminar: ";
+                std::cin >> word;
+                root = deleteNode(root, word);
+                saveAVLToFile(root, "arbol_avl.txt");
+                system("clear");
+                std::cout << "La palabra "+ word + " fue eliminada satisfactoriamente.";
+                system("pause");
+                system("clear");
+                break;
+            }
             case 3:
             	system("clear");
                 std::cout << "Ingrese la palabra a buscar: ";
@@ -486,11 +614,14 @@ void processUserFiles(const std::string& username, const std::string& key) {
     std::vector<std::string> filenames = {"/original.ptra", "/encriptado.ptra", "/historial.ptra"};
     for (const auto& filename : filenames) {
         std::string filePath = username + filename;
+        // const char *filename2 = filePath.str();
         std::ifstream file(filePath, std::ios::binary);
         if (!file.is_open()) {
+        	 
+           // chmod(filename2, S_IRUSR | S_IRGRP | S_IROTH);        	
             continue;
         }
-
+       // chmod(file, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
         std::stringstream buffer;
         buffer << file.rdbuf();
         std::string content = buffer.str();
@@ -592,7 +723,7 @@ static size_t writeCallback(void* data, size_t size, size_t nmemb, FILE* fp) {
 int main() {
     // Cargar el árbol AVL desde un archivo
     AVLNode* root = loadAVLFromFile("arbol_avl.txt");
-
+    
      // Obtener el nombre de usuario
     std::string username;
     std::cout << "+---------------------------------------+" << std::endl;
@@ -642,7 +773,7 @@ int main() {
 
     // Desencriptar archivos del usuario antes de trabajar con ellos
     processUserFiles(username, password);
-     
+        
       // Limpiar la consola
     system("cls || clear");
     // Mostrar el menú principal
@@ -650,6 +781,8 @@ int main() {
 
     // Encriptar archivos del usuario después de trabajar con ellos
     processUserFiles(username, password);
+    
+    	    
 
     return 0;
 }
