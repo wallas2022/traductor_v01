@@ -11,6 +11,7 @@ gato,gatto,chat,katze,cat
 gracias,grazie,merci,danke,tank
 hoja,foglia,feuille,blatt,leaf
 hola,ciao,bonjour,hallo,goodbye
+hoy,oggi,aujourdhui,heute,today
 leche,latte,lait,milch,milk
 libro,libro,livre,bush,book
 luna,luna,lune,mond,moon

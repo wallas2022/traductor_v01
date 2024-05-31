@@ -10,7 +10,13 @@
 #include <curl/curl.h>
 #include <cstring> 
 #include <functional>
-
+#include <sstream>
+#if defined(_WIN32)
+#include <conio.h>
+#else
+#include <unistd.h>
+#include <termios.h>
+#endif
 
 
 using namespace std;
@@ -57,6 +63,9 @@ void printHeader();
 AVLNode* deleteNode(AVLNode* root, const std::string& spanishWord);
 AVLNode* findMinNode(AVLNode* node);
 void saveAVLToFile(AVLNode* root, const std::string& filename);
+void changeFilePermissions(const std::vector<std::string>& filenames, mode_t mode);
+std::string getPassword() ;
+
 
 
 
@@ -610,18 +619,41 @@ void showMenu(AVLNode* root, string& username) {
     }
 }
 
-void processUserFiles(const std::string& username, const std::string& key) {
-    std::vector<std::string> filenames = {"/original.ptra", "/encriptado.ptra", "/historial.ptra"};
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <vector>
+#include <sys/stat.h>  // Para usar chmod
+#include <sstream>
+
+// Función para cambiar los permisos de los archivos
+void changeFilePermissions(const std::vector<std::string>& filenames, mode_t mode) {
     for (const auto& filename : filenames) {
-        std::string filePath = username + filename;
-        // const char *filename2 = filePath.str();
+        if (chmod(filename.c_str(), mode) != 0) {
+            std::cerr << "Error cambiando permisos para el archivo: " << filename << std::endl;
+        }
+    }
+}
+
+// Tu función para procesar archivos
+void processUserFiles(const std::string& username, const std::string& key) {
+    std::vector<std::string> filenames = {"/original.ptra", "/encriptado.ptra", "/historial.ptra","/llave_"+username+".ptra"};
+    std::vector<std::string> filePaths;
+
+    for (const auto& filename : filenames) {
+        filePaths.push_back(username + filename);
+    }
+
+    // Otorgar permisos de escritura
+    changeFilePermissions(filePaths, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+
+    for (const auto& filePath : filePaths) {
         std::ifstream file(filePath, std::ios::binary);
         if (!file.is_open()) {
-        	 
-           // chmod(filename2, S_IRUSR | S_IRGRP | S_IROTH);        	
+            std::cerr << "Error al abrir el archivo para leer: " << filePath << std::endl;
             continue;
         }
-       // chmod(file, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+
         std::stringstream buffer;
         buffer << file.rdbuf();
         std::string content = buffer.str();
@@ -638,7 +670,11 @@ void processUserFiles(const std::string& username, const std::string& key) {
         outFile << content;
         outFile.close();
     }
+
+    // Cambiar permisos a solo lectura
+    changeFilePermissions(filePaths, S_IRUSR | S_IRGRP | S_IROTH);
 }
+
 void saveUserPassword(const std::string& username, const std::string& password) {
     std::string encryptedPassword = password;
     xorEncryptDecrypt(password, encryptedPassword);
@@ -719,28 +755,61 @@ static size_t writeCallback(void* data, size_t size, size_t nmemb, FILE* fp) {
   return written;
 }
 
+// Función para ocultar la entrada de la clave
+std::string getPassword() {
+    std::string password;
+
+#if defined(_WIN32)
+    char ch;
+    while ((ch = _getch()) != '\r') { // Hasta que se presione Enter
+        if (ch == '\b') { // Manejar la tecla Backspace
+            if (!password.empty()) {
+                password.pop_back();
+                std::cout << "\b \b";
+            }
+        } else {
+            password += ch;
+            std::cout << '*'; // Mostrar asterisco
+        }
+    }
+#else
+    struct termios oldt, newt;
+    tcgetattr(STDIN_FILENO, &oldt); // obtener los parámetros del terminal
+    newt = oldt;
+    newt.c_lflag &= ~ECHO; // desactivar el eco
+    tcsetattr(STDIN_FILENO, TCSANOW, &newt); // establecer los nuevos parámetros
+
+    std::getline(std::cin, password);
+
+    tcsetattr(STDIN_FILENO, TCSANOW, &oldt); // restaurar los parámetros originales
+#endif
+
+    std::cout << std::endl; // Nueva línea después de la clave ingresada
+    return password;
+}
+
 
 int main() {
     // Cargar el árbol AVL desde un archivo
     AVLNode* root = loadAVLFromFile("arbol_avl.txt");
-    
-     // Obtener el nombre de usuario
+
+    // Obtener el nombre de usuario
     std::string username;
     std::cout << "+---------------------------------------+" << std::endl;
     std::cout << "|                                       |" << std::endl;
     std::cout << "|        Bienvenido al traductor        |" << std::endl;
     std::cout << "|                                       |" << std::endl;
     std::cout << "|                                       |" << std::endl;
-    std::cout << "|              Integrantes              |" << std::endl;
-    std::cout << "|                                       |" << std::endl;
+    std::cout << "|                  2024                 |" << std::endl;
+    std::cout << "|             Version 1.3.0             |" << std::endl;
     std::cout << "|                                       |" << std::endl;
     std::cout << "+---------------------------------------+" << std::endl;
-    std::cout << "Ingrese su nombre de usuario: ";
+    std::cout << "Ingrese su usuario: ";
     std::cin >> username;
 
     std::string userDir = "./" + username;
     std::string password;
-    
+
     // Verificar si el usuario ya existe
     struct stat info;
     if (stat(userDir.c_str(), &info) != 0 || !(info.st_mode & S_IFDIR)) {
@@ -752,18 +821,18 @@ int main() {
         #endif
 
         std::cout << "Ingrese una nueva clave: ";
-        std::cin >> password;
+        password = getPassword();
         saveUserPassword(username, password);
         std::cout << "Usuario y clave creados exitosamente." << std::endl;
     } else {
         // El usuario existe, pedir contraseña y verificar
         std::cout << "Ingrese su clave: ";
-        std::cin >> password;
-        
+        password = getPassword();
+
         if (!verifyUserPassword(username, password)) {
             std::cerr << "Clave incorrecta. Saliendo del programa..." << std::endl;
-             // Cambiar permisos para solo lectura
-			    chmod(userDir.c_str(), S_IRUSR | S_IRGRP | S_IROTH);
+            // Cambiar permisos para solo lectura
+            chmod(userDir.c_str(), S_IRUSR | S_IRGRP | S_IROTH);
             return 1;
         } else {
             std::cout << "Clave verificada. Bienvenido, " << username << "!" << std::endl;
@@ -773,16 +842,14 @@ int main() {
 
     // Desencriptar archivos del usuario antes de trabajar con ellos
     processUserFiles(username, password);
-        
-      // Limpiar la consola
+
+    // Limpiar la consola
     system("cls || clear");
     // Mostrar el menú principal
     showMenu(root, username);
 
     // Encriptar archivos del usuario después de trabajar con ellos
     processUserFiles(username, password);
-    
-    	    
 
     return 0;
 }
