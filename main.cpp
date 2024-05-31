@@ -393,6 +393,8 @@ void saveUserInformation(const std::string& username, const std::string& word, c
 }
 
 
+
+
 void printHeader() {
     std::cout << "+---------------------------------------+" << std::endl;
     std::cout << "|             Bienvenido a             |" << std::endl;
@@ -409,15 +411,17 @@ void showMenu(AVLNode* root, string& username) {
         printHeader();
     std::cout << "\n Hola, " << username << "" << std::endl;
     std::cout << "\n--- Menu Principal ---" << std::endl;
-    std::cout << "1. Buscar traduccion de una palabra." << std::endl;
-    std::cout << "2. Mostrar las palabras más buscadas." << std::endl;
-    std::cout << "3. Salir." << std::endl;
+    std::cout << "1. Insertar traducciones" << std::endl;
+    std::cout << "2. Eliminar traducciones" << std::endl;
+    std::cout << "3. Buscar traduccion de una palabra." << std::endl;
+    std::cout << "4. Mostrar las palabras más buscadas." << std::endl;
+    std::cout << "5. Salir." << std::endl;
     std::cout << "\nSeleccione una opcion: ";
         int choice;
         std::cin >> choice;
 
         switch (choice) {
-            case 1:
+            case 3:
             	system("clear");
                 std::cout << "Ingrese la palabra a buscar: ";
                 std::cin >> word;
@@ -460,14 +464,14 @@ void showMenu(AVLNode* root, string& username) {
 					      std::cerr << "The translation is empty." << std::endl;
 					    }                
                 break;
-            case 2:
+            case 4:
             	system("clear");
                 int topN;
                 std::cout << "Ingrese el número de palabras más buscadas a mostrar: ";
                 std::cin >> topN;
                 showTopWords(username,topN);
                 break;
-            case 3:
+            case 5:
             	system("clear");
                 std::cout << "Saliendo del programa...\n";
                 return;
@@ -506,7 +510,7 @@ void processUserFiles(const std::string& username, const std::string& key) {
 }
 void saveUserPassword(const std::string& username, const std::string& password) {
     std::string encryptedPassword = password;
-    xorEncryptDecrypt("simple_key", encryptedPassword);
+    xorEncryptDecrypt(password, encryptedPassword);
     
     std::string passwordFile = username + "/llave_" + username + ".ptra";
     std::ofstream file(passwordFile);
@@ -530,7 +534,7 @@ bool verifyUserPassword(const std::string& username, const std::string& password
     std::getline(file, storedPassword);
     file.close();
 
-    xorEncryptDecrypt("simple_key", storedPassword);
+    xorEncryptDecrypt(password, storedPassword);
 
     return storedPassword == password;
 }
@@ -627,9 +631,12 @@ int main() {
         
         if (!verifyUserPassword(username, password)) {
             std::cerr << "Clave incorrecta. Saliendo del programa..." << std::endl;
+             // Cambiar permisos para solo lectura
+			    chmod(userDir.c_str(), S_IRUSR | S_IRGRP | S_IROTH);
             return 1;
         } else {
             std::cout << "Clave verificada. Bienvenido, " << username << "!" << std::endl;
+            chmod(userDir.c_str(), S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
         }
     }
 
